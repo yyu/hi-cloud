@@ -34,7 +34,7 @@ _detach_volume_if_attached() {
                 --output text`
         echo -e "volume $volume_id is attached to" `color red $instance_state` `color ylw instance` `color blu $instance_id` | color ylw >&2
 
-        echo "Ctrl-C to quit or press any key to detach `color blu $instance_id`" | serr_with_color mgt
+        echo "Ctrl-C to quit or press any key to detach `color blu $instance_id`" | serr_with_color m_t
         read
         explicitly aws ec2 detach-volume --volume-id $volume_id
         explicitly wait_until_volume_is available $volume_id
@@ -69,10 +69,43 @@ copy_files_in_volume() {
 
     explicitly aws ec2 attach-volume --volume-id $volume_id --instance-id $instance_id --device $FROM_DEV
 
+    local public_ip=`get_ec2_instance_public_ip $instance_id`
+    local pemkey=`explicitly aws ec2 describe-instances --instance-ids $instance_id --query "Reservations[*].Instances[0].KeyName" --output text`
+    serr_with_color y_w "Path to pem file for" `color M_T $pemkey` `color y_w please`
+    read pemfile
+    serr_with_color y_w "Username for" `color M_T $instance_id` `color y_w please`
+    read username
+
+    explicitly wait_until_volume_is "in-use" $volume_id
+
+    local partitions=`explicitly ssh -i $pemfile $username@$public_ip "sudo fdisk -l $FROM_DEV | grep '83 Linux' | cut -d' ' -f1"`
+    if [ -n "$partitions" ]; then
+        for part in $partitions; do
+            local partbase=`basename $part`
+            explicitly ssh -i $pemfile $username@$public_ip "
+                                                     export KISSBASH_PATH=/tmp/.kissbash/kissbash
+                                                     . \$KISSBASH_PATH/console/lines
+                                                     . \$KISSBASH_PATH/exec/explicitly
+                                                     serr_with_color YLW '--------------------------------------------------------------------------------'
+                                                     explicitly sudo mkdir -vp /mnt/dev0/$partbase
+                                                     explicitly sudo mount $part /mnt/dev0/$partbase
+                                                     serr_with_color YLW '--------------------------------------------------------------------------------'
+                                                    "
+        done
+    fi
+
+    # source device is ready
+
+    # prepare for the destination device below
+
+    # the same AZ as source volume
     local az=`explicitly aws ec2 describe-volumes --volume-ids $volume_id --query "Volumes[*].{InstanceId:AvailabilityZone}" --output text`
-    echo "Volume size in GB: " | serr_with_color mgt
+
+    # decide the size of the destination volume
+    explicitly ssh -i $pemfile $username@$public_ip "sudo df -h" |serr_with_color blu
+    echo "Volume size in GB: " | serr_with_color m_t
     read sz
-    if [ -z $sz ]; then
+    if [ -z "$sz" ]; then
         sz=`explicitly aws ec2 describe-volumes --volume-ids $volume_id --query "Volumes[*].{InstanceId:Size}" --output text`
     fi
     echo "Volume size in GB: $sz" | serr_with_color mgt
@@ -104,13 +137,6 @@ copy_files_in_volume() {
         q # and we're done
 EOF
 
-    local public_ip=`get_ec2_instance_public_ip $instance_id`
-    local pemkey=`explicitly aws ec2 describe-instances --instance-ids $instance_id --query "Reservations[*].Instances[0].KeyName" --output text`
-    serr_with_color ylw "Path to pem file for" `color MGT $pemkey` `color ylw please`
-    read pemfile
-    serr_with_color ylw "Username for" `color MGT $instance_id` `color ylw please`
-    read username
-
     explicitly scp -i $pemfile /tmp/fdisk.input $username@$public_ip:/tmp/
 
     explicitly ssh -i $pemfile $username@$public_ip "
@@ -134,22 +160,6 @@ EOF
                                                      explicitly sudo mount $TO_DEV"2" /mnt/dev1/2
                                                      serr_with_color YLW '--------------------------------------------------------------------------------'
                                                     "
-
-    local partitions=`explicitly ssh -i $pemfile $username@$public_ip "sudo fdisk -l $FROM_DEV | grep '83 Linux' | cut -d' ' -f1"`
-    if [ -n "$partitions" ]; then
-        for part in $partitions; do
-            local partbase=`basename $part`
-            explicitly ssh -i $pemfile $username@$public_ip "
-                                                     export KISSBASH_PATH=/tmp/.kissbash/kissbash
-                                                     . \$KISSBASH_PATH/console/lines
-                                                     . \$KISSBASH_PATH/exec/explicitly
-                                                     serr_with_color YLW '--------------------------------------------------------------------------------'
-                                                     explicitly sudo mkdir -vp /mnt/dev0/$partbase
-                                                     explicitly sudo mount $part /mnt/dev0/$partbase
-                                                     serr_with_color YLW '--------------------------------------------------------------------------------'
-                                                    "
-        done
-    fi
 
     explicitly ssh -i $pemfile $username@$public_ip
 
