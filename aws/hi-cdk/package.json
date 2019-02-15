@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@aws-cdk/aws-lambda": "^0.24.1",
+    "@aws-cdk/aws-lambda-event-sources": "^0.24.1",
     "@aws-cdk/aws-s3": "^0.24.1",
     "@aws-cdk/cdk": "^0.24.1",
     "source-map-support": "^0.5.9"
