@@ -43,12 +43,12 @@ export class HiCdkStack extends cdk.Stack {
       code: new lambda.InlineCode(fs.readFileSync('lib/dummy-lambda-function-with-logging.js', { encoding: 'utf-8' })),
       handler: 'index.handler',
       runtime: lambda.Runtime.NodeJS810
-    })
+    });
     lambda4event.addToRolePolicy(
       new iam.PolicyStatement()
         .addAction('cloudwatch:PutMetricData')
         .addAllResources()
-    )
+    );
 
     // cloudwatch
     new events.EventRule(this, 'Event1', {
