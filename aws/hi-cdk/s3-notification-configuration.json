@@ -1,0 +1,12 @@
+{
+    "LambdaFunctionConfigurations": [
+        {
+            "Id": "blah",
+            "LambdaFunctionArn": "arn:aws:lambda:us-west-2:945308923989:function:HiCdkStack-AWSomeCDKLambdaLsS34E6356D3-NIWYGLWU5VEX",
+            "Events": [
+                "s3:ObjectCreated:*"
+            ]
+        }
+    ]
+}
+
